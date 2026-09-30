@@ -13743,6 +13743,126 @@
       return new _BoxGeometry(data.width, data.height, data.depth, data.widthSegments, data.heightSegments, data.depthSegments);
     }
   };
+  var CapsuleGeometry = class _CapsuleGeometry extends BufferGeometry {
+    /**
+     * Constructs a new capsule geometry.
+     *
+     * @param {number} [radius=1] - Radius of the capsule.
+     * @param {number} [height=1] - Height of the middle section.
+     * @param {number} [capSegments=4] - Number of curve segments used to build each cap.
+     * @param {number} [radialSegments=8] - Number of segmented faces around the circumference of the capsule. Must be an integer >= 3.
+     * @param {number} [heightSegments=1] - Number of rows of faces along the height of the middle section. Must be an integer >= 1.
+     */
+    constructor(radius = 1, height = 1, capSegments = 4, radialSegments = 8, heightSegments = 1) {
+      super();
+      this.type = "CapsuleGeometry";
+      this.parameters = {
+        radius,
+        height,
+        capSegments,
+        radialSegments,
+        heightSegments
+      };
+      height = Math.max(0, height);
+      capSegments = Math.max(1, Math.floor(capSegments));
+      radialSegments = Math.max(3, Math.floor(radialSegments));
+      heightSegments = Math.max(1, Math.floor(heightSegments));
+      const indices = [];
+      const vertices = [];
+      const normals = [];
+      const uvs = [];
+      const halfHeight = height / 2;
+      const capArcLength = Math.PI / 2 * radius;
+      const cylinderPartLength = height;
+      const totalArcLength = 2 * capArcLength + cylinderPartLength;
+      const numVerticalSegments = capSegments * 2 + heightSegments;
+      const verticesPerRow = radialSegments + 1;
+      const normal = new Vector3();
+      const vertex2 = new Vector3();
+      for (let iy = 0; iy <= numVerticalSegments; iy++) {
+        let currentArcLength = 0;
+        let profileY = 0;
+        let profileRadius = 0;
+        let normalYComponent = 0;
+        if (iy <= capSegments) {
+          const segmentProgress = iy / capSegments;
+          const angle = segmentProgress * Math.PI / 2;
+          profileY = -halfHeight - radius * Math.cos(angle);
+          profileRadius = radius * Math.sin(angle);
+          normalYComponent = -radius * Math.cos(angle);
+          currentArcLength = segmentProgress * capArcLength;
+        } else if (iy <= capSegments + heightSegments) {
+          const segmentProgress = (iy - capSegments) / heightSegments;
+          profileY = -halfHeight + segmentProgress * height;
+          profileRadius = radius;
+          normalYComponent = 0;
+          currentArcLength = capArcLength + segmentProgress * cylinderPartLength;
+        } else {
+          const segmentProgress = (iy - capSegments - heightSegments) / capSegments;
+          const angle = segmentProgress * Math.PI / 2;
+          profileY = halfHeight + radius * Math.sin(angle);
+          profileRadius = radius * Math.cos(angle);
+          normalYComponent = radius * Math.sin(angle);
+          currentArcLength = capArcLength + cylinderPartLength + segmentProgress * capArcLength;
+        }
+        const v = Math.max(0, Math.min(1, currentArcLength / totalArcLength));
+        let uOffset = 0;
+        if (iy === 0) {
+          uOffset = 0.5 / radialSegments;
+        } else if (iy === numVerticalSegments) {
+          uOffset = -0.5 / radialSegments;
+        }
+        for (let ix = 0; ix <= radialSegments; ix++) {
+          const u = ix / radialSegments;
+          const theta = u * Math.PI * 2;
+          const sinTheta = Math.sin(theta);
+          const cosTheta = Math.cos(theta);
+          vertex2.x = -profileRadius * cosTheta;
+          vertex2.y = profileY;
+          vertex2.z = profileRadius * sinTheta;
+          vertices.push(vertex2.x, vertex2.y, vertex2.z);
+          normal.set(
+            -profileRadius * cosTheta,
+            normalYComponent,
+            profileRadius * sinTheta
+          );
+          normal.normalize();
+          normals.push(normal.x, normal.y, normal.z);
+          uvs.push(u + uOffset, v);
+        }
+        if (iy > 0) {
+          const prevIndexRow = (iy - 1) * verticesPerRow;
+          for (let ix = 0; ix < radialSegments; ix++) {
+            const i1 = prevIndexRow + ix;
+            const i2 = prevIndexRow + ix + 1;
+            const i3 = iy * verticesPerRow + ix;
+            const i4 = iy * verticesPerRow + ix + 1;
+            indices.push(i1, i2, i3);
+            indices.push(i2, i4, i3);
+          }
+        }
+      }
+      this.setIndex(indices);
+      this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+      this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+      this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+    }
+    copy(source) {
+      super.copy(source);
+      this.parameters = Object.assign({}, source.parameters);
+      return this;
+    }
+    /**
+     * Factory method for creating an instance of this class from the given
+     * JSON object.
+     *
+     * @param {Object} data - A JSON object representing the serialized geometry.
+     * @return {CapsuleGeometry} A new instance.
+     */
+    static fromJSON(data) {
+      return new _CapsuleGeometry(data.radius, data.height, data.capSegments, data.radialSegments, data.heightSegments);
+    }
+  };
   var CircleGeometry = class _CircleGeometry extends BufferGeometry {
     /**
      * Constructs a new circle geometry.
@@ -15329,7 +15449,7 @@
       const vertex2 = new Vector3();
       const normal = new Vector3();
       const uv = new Vector2();
-      let P = new Vector3();
+      let P2 = new Vector3();
       const vertices = [];
       const normals = [];
       const uvs = [];
@@ -15348,7 +15468,7 @@
         generateIndices();
       }
       function generateSegment(i) {
-        P = path.getPointAt(i / tubularSegments, P);
+        P2 = path.getPointAt(i / tubularSegments, P2);
         const N = frames.normals[i];
         const B2 = frames.binormals[i];
         for (let j = 0; j <= radialSegments; j++) {
@@ -15360,9 +15480,9 @@
           normal.z = cos * N.z + sin * B2.z;
           normal.normalize();
           normals.push(normal.x, normal.y, normal.z);
-          vertex2.x = P.x + radius * normal.x;
-          vertex2.y = P.y + radius * normal.y;
-          vertex2.z = P.z + radius * normal.z;
+          vertex2.x = P2.x + radius * normal.x;
+          vertex2.y = P2.y + radius * normal.y;
+          vertex2.z = P2.z + radius * normal.z;
           vertices.push(vertex2.x, vertex2.y, vertex2.z);
         }
       }
@@ -31068,10 +31188,10 @@ void main() {
     }
   }
 
-  // flow-entry.js
+  // fisheries-upgrade-entry.js
   var q = 0;
-  var A = [["Harvest", "Catch records and marine stewardship", -8, -2, 1477796], ["Cold-chain", "Four solar-powered cooperative facilities", -4, 5, 3389127], ["Value addition", "Four products developed and tested", 3, 5, 15841355], ["Markets", "Buyer and supply arrangements", 8, 1, 15697757], ["Recovery", "By-products returned to value", 4, -5, 14052175], ["Cooperative", "Reinvestment, training and protection", -4, -6, 3844487]];
-  var F = [[0, 1, 3265980], [1, 2, 3265980], [2, 3, 3265980], [2, 4, 15694933], [4, 5, 15694933], [3, 5, 16765276], [5, 0, 9357823], [5, 1, 16765276]];
+  var A = [["Fishing & Landing", "Fishers land, weigh and record catch", -10, -2, 1477796], ["Solar Cold-chain", "Four solar-powered cooperative facilities", -6, 7, 3389127], ["Processing & Value", "Four products developed and tested", 2, 8, 15841355], ["Cooperative Market", "Buyer and supply arrangements", 10, 3, 15697757], ["By-product Recovery", "Bones and by-products returned to value", 8, -6, 14052175], ["Cooperative Services", "Reinvestment, records and member protection", 0, -9, 3844487], ["Training & Learning", "Practical workshops, demonstrations and mentoring", -9, -8, 7891401]];
+  var F = [[0, 1, 3265980], [1, 2, 3265980], [2, 3, 3265980], [2, 4, 15694933], [4, 5, 15694933], [3, 5, 16765276], [5, 6, 9357823], [6, 0, 9357823], [6, 1, 16765276]];
   var M = (c) => new MeshStandardMaterial({ color: c, roughness: 0.7 });
   var B = (w, h, d, c) => {
     let m = new Mesh(new BoxGeometry(w, h, d), M(c));
@@ -31103,57 +31223,164 @@ void main() {
     s.position.y = 3.8;
     return s;
   }
-  function G(i) {
+  function P(sh = 15771719, sc = 1) {
+    let g = new Group(), l = B(0.34, 0.72, 0.22, 2505552);
+    l.position.y = 0.36;
+    g.add(l);
+    let b = new Mesh(new CapsuleGeometry(0.25, 0.62, 5, 10), M(sh));
+    b.position.y = 1.1;
+    b.castShadow = 1;
+    g.add(b);
+    let d = new Mesh(new SphereGeometry(0.2, 14, 10), M(9132091));
+    d.position.y = 1.72;
+    g.add(d);
+    let hat = C(0.3, 0.09, 15979371);
+    hat.position.y = 1.92;
+    g.add(hat);
+    g.scale.setScalar(sc);
+    return g;
+  }
+  function boat(col) {
+    let g = new Group(), z = new Mesh(new CapsuleGeometry(0.48, 2.4, 7, 14), M(col));
+    z.rotation.z = 1.57;
+    z.scale.set(1, 0.42, 0.62);
+    z.position.y = 0.38;
+    g.add(z);
+    let deck = B(1.8, 0.12, 0.5, 15920609);
+    deck.position.y = 0.62;
+    g.add(deck);
+    let p = P(15763269, 0.8);
+    p.position.set(0.4, 0.62, 0);
+    g.add(p);
+    return g;
+  }
+  function crate(col = 3378861) {
+    let g = new Group();
+    g.add(B(0.75, 0.4, 0.55, col));
+    for (let i = 0; i < 3; i++) {
+      let z = new Mesh(new CapsuleGeometry(0.06, 0.3, 4, 8), M(11984099));
+      z.rotation.z = 1.57;
+      z.position.set(-0.2 + i * 0.2, 0.43, 0);
+      g.add(z);
+    }
+    return g;
+  }
+  function G2(i) {
     let g = new Group(), c = A[i][4];
     if (i == 0) {
-      g.add(B(4, 0.3, 2.4, 9143416));
-      [-1, 1].forEach((x, j) => {
-        let z = B(2, 0.45, 0.7, j ? 15162437 : 2723253);
-        z.position.set(x * 1.4, 0.3, 1.7);
+      g.add(B(5.8, 0.35, 2.6, 9340794));
+      [-1.7, 1.5].forEach((x, j) => {
+        let z = boat(j ? 15162693 : 2461110);
+        z.position.set(x, -0.05, 2.1 + j * 0.3);
         g.add(z);
       });
-    } else if (i == 1) {
-      g.add(B(4, 2.4, 2.8, 15265520));
-      let r = B(4.4, 0.2, 3.1, 4683660);
-      r.position.y = 2.5;
-      g.add(r);
-      [-1, 0, 1].forEach((x) => {
-        let p = B(1, 0.08, 1.2, 1654361);
-        p.position.set(x * 1.1, 2.85, 0);
-        p.rotation.x = -0.35;
+      [-1.6, -0.5, 0.7].forEach((x, j) => {
+        let p = P([15698755, 4367754, 5402529][j]);
+        p.position.set(x, 0.35, -0.2 + j * 0.35);
         g.add(p);
       });
+      let sc = B(0.9, 0.18, 0.8, 6846074);
+      sc.position.set(1.7, 0.42, 0.3);
+      g.add(sc);
+      let cr = crate();
+      cr.position.set(0.2, 0.35, 0.55);
+      g.add(cr);
+    } else if (i == 1) {
+      g.add(B(4.8, 2.8, 3.4, 15331056));
+      let r = B(5.1, 0.2, 3.7, 5144465);
+      r.position.y = 2.95;
+      g.add(r);
+      [-1, 0, 1].forEach((x) => {
+        let p = B(1.15, 0.08, 1.3, 1523034);
+        p.position.set(x * 1.25, 3.35, 0);
+        p.rotation.x = -0.34;
+        g.add(p);
+      });
+      let w = P(3049367);
+      w.position.set(-1.2, 0.2, 2.1);
+      g.add(w);
+      let cr = crate(3048354);
+      cr.position.set(0.1, 0.2, 2);
+      g.add(cr);
     } else if (i == 2) {
-      g.add(B(4, 0.2, 3.2, 11117466));
-      [-1.6, 1.6].forEach((x) => [-1.2, 1.2].forEach((z) => {
-        let p = C(0.07, 2.3, 6379079);
-        p.position.set(x, 1.25, z);
+      g.add(B(5.5, 0.2, 4.3, 11709861));
+      [-2.35, 2.35].forEach((x) => [-1.7, 1.7].forEach((z) => {
+        let p = C(0.08, 2.8, 6707527);
+        p.position.set(x, 1.5, z);
         g.add(p);
       }));
-      let r = B(4.4, 0.15, 3.5, 14133842);
-      r.position.y = 2.45;
+      let r = B(5.3, 0.16, 4.1, 14133842);
+      r.position.y = 2.95;
       g.add(r);
-      [-1, 0, 1].forEach((x) => {
-        let z = B(1, 0.7, 1.5, 13093061);
-        z.position.set(x * 1.2, 0.4, 0);
+      [-1.4, 0, 1.4].forEach((x, j) => {
+        let t = B(1.2, 0.78, 2.1, 13225678);
+        t.position.set(x, 0.5, 0);
+        g.add(t);
+        let p = P([5151626, 15829833, 5601194][j], 0.92);
+        p.position.set(x, 0.2, -1.45);
+        g.add(p);
+      });
+    } else if (i == 3) {
+      g.add(B(4.8, 2.5, 3.4, 15853518));
+      let r = B(5.2, 0.2, 3.7, 14249547);
+      r.position.y = 2.6;
+      g.add(r);
+      [-1.5, -0.5, 0.5, 1.5].forEach((x, j) => {
+        let z = crate([14719542, 3909227, 5083580, 14772816][j]);
+        z.position.set(x, 0.1, 2);
         g.add(z);
       });
+      let a = P(15694933);
+      a.position.set(-1, 0.15, 1);
+      g.add(a);
+      let b = P(5862313);
+      b.position.set(1.15, 0.15, 2.5);
+      b.rotation.y = 3.14;
+      g.add(b);
     } else if (i == 4) {
-      g.add(B(3.8, 0.2, 3, 10064519));
-      [-1, 0, 1].forEach((x, j) => {
-        let z = C(0.55, 1.3, [14052175, 14920271, 7120764][j]);
-        z.position.set(x * 1.2, 0.7, 0);
+      g.add(B(4.8, 0.2, 3.8, 10393485));
+      [-1.4, 0, 1.4].forEach((x, j) => {
+        let z = C(0.62, 1.45, [14052175, 14920271, 7120764][j]);
+        z.position.set(x, 0.82, -0.5);
         g.add(z);
+      });
+      let m = B(1.5, 1.1, 1.2, 6516853);
+      m.position.set(-1.2, 0.65, 1.2);
+      g.add(m);
+      let p = P(14184010);
+      p.position.set(2, 0.15, -1.5);
+      g.add(p);
+    } else if (i == 5) {
+      g.add(B(4.8, 2.5, 3.4, 14282470));
+      let r = B(5.2, 0.2, 3.7, 2591871);
+      r.position.y = 2.6;
+      g.add(r);
+      [-1.2, 1.2].forEach((x, j) => {
+        let p = P(j ? 5600677 : 3844487);
+        p.position.set(x, 0.15, 2.2);
+        g.add(p);
       });
     } else {
-      g.add(B(3.8, 2.2, 2.8, i == 3 ? 15919311 : 14282470));
-      let r = B(4.2, 0.2, 3.1, c);
-      r.position.y = 2.3;
+      g.add(B(5.5, 0.2, 4.2, 11643552));
+      [-2.35, 2.35].forEach((x) => [-1.7, 1.7].forEach((z) => {
+        let p = C(0.08, 2.8, 6707527);
+        p.position.set(x, 1.5, z);
+        g.add(p);
+      }));
+      let r = B(5.3, 0.16, 4.1, 7891401);
+      r.position.y = 2.95;
       g.add(r);
-      [-1, 0, 1].forEach((x, j) => {
-        let z = B(0.75, 0.5, 0.7, [15311163, 3974509, 5214653][j]);
-        z.position.set(x * 0.9, 0.25, 1.7);
-        g.add(z);
+      let board = B(2.3, 1.15, 0.1, 16184296);
+      board.position.set(0, 1.75, -1.7);
+      g.add(board);
+      let tr = P(15902277);
+      tr.position.set(-1.5, 0.15, -0.55);
+      g.add(tr);
+      [[-1.4, 0.7], [0, 0.7], [1.4, 0.7], [-1.4, 1.6], [0, 1.6], [1.4, 1.6]].forEach((a, j) => {
+        let p = P([4755378, 15694933, 3844487, 7891401, 15116100, 4684389][j], 0.8);
+        p.position.set(a[0], 0.2, a[1]);
+        p.rotation.y = 3.14;
+        g.add(p);
       });
     }
     g.add(L(A[i][0]));
@@ -31199,7 +31426,7 @@ void main() {
     road.position.y = 1.55;
     s.add(road);
     let gs = A.map((a, i) => {
-      let g = G(i);
+      let g = G2(i);
       g.position.set(a[2], 1.55, a[3]);
       g.rotation.y = -Math.atan2(a[3], a[2]) + 1.57;
       s.add(g);
