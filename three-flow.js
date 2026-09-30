@@ -1,5 +1,5 @@
 (() => {
-  // node_modules/.pnpm/three@0.186.0/node_modules/three/build/three.core.js
+  // node_modules/three/build/three.core.js
   var REVISION = "186";
   var MOUSE = { LEFT: 0, MIDDLE: 1, RIGHT: 2, ROTATE: 0, DOLLY: 1, PAN: 2 };
   var TOUCH = { ROTATE: 0, PAN: 1, DOLLY_PAN: 2, DOLLY_ROTATE: 3 };
@@ -14076,6 +14076,43 @@
       return new _CylinderGeometry(data.radiusTop, data.radiusBottom, data.height, data.radialSegments, data.heightSegments, data.openEnded, data.thetaStart, data.thetaLength);
     }
   };
+  var ConeGeometry = class _ConeGeometry extends CylinderGeometry {
+    /**
+     * Constructs a new cone geometry.
+     *
+     * @param {number} [radius=1] - Radius of the cone base.
+     * @param {number} [height=1] - Height of the cone.
+     * @param {number} [radialSegments=32] - Number of segmented faces around the circumference of the cone.
+     * @param {number} [heightSegments=1] - Number of rows of faces along the height of the cone.
+     * @param {boolean} [openEnded=false] - Whether the base of the cone is open or capped.
+     * @param {number} [thetaStart=0] - Start angle for first segment, in radians.
+     * @param {number} [thetaLength=Math.PI*2] - The central angle, often called theta, of the circular sector, in radians.
+     * The default value results in a complete cone.
+     */
+    constructor(radius = 1, height = 1, radialSegments = 32, heightSegments = 1, openEnded = false, thetaStart = 0, thetaLength = Math.PI * 2) {
+      super(0, radius, height, radialSegments, heightSegments, openEnded, thetaStart, thetaLength);
+      this.type = "ConeGeometry";
+      this.parameters = {
+        radius,
+        height,
+        radialSegments,
+        heightSegments,
+        openEnded,
+        thetaStart,
+        thetaLength
+      };
+    }
+    /**
+     * Factory method for creating an instance of this class from the given
+     * JSON object.
+     *
+     * @param {Object} data - A JSON object representing the serialized geometry.
+     * @return {ConeGeometry} A new instance.
+     */
+    static fromJSON(data) {
+      return new _ConeGeometry(data.radius, data.height, data.radialSegments, data.heightSegments, data.openEnded, data.thetaStart, data.thetaLength);
+    }
+  };
   var Curve = class {
     /**
      * Constructs a new curve.
@@ -17811,6 +17848,120 @@
       this.cameras = array;
     }
   };
+  var Timer = class {
+    /**
+     * Constructs a new timer.
+     */
+    constructor() {
+      this._previousTime = 0;
+      this._currentTime = 0;
+      this._startTime = performance.now();
+      this._delta = 0;
+      this._elapsed = 0;
+      this._timescale = 1;
+      this._document = null;
+      this._pageVisibilityHandler = null;
+    }
+    /**
+     * Connect the timer to the given document.Calling this method is not mandatory to
+     * use the timer but enables the usage of the Page Visibility API to avoid large time
+     * delta values.
+     *
+     * @param {Document} document - The document.
+     */
+    connect(document2) {
+      this._document = document2;
+      if (document2.hidden !== void 0) {
+        this._pageVisibilityHandler = handleVisibilityChange.bind(this);
+        document2.addEventListener("visibilitychange", this._pageVisibilityHandler, false);
+      }
+    }
+    /**
+     * Disconnects the timer from the DOM and also disables the usage of the Page Visibility API.
+     */
+    disconnect() {
+      if (this._pageVisibilityHandler !== null) {
+        this._document.removeEventListener("visibilitychange", this._pageVisibilityHandler);
+        this._pageVisibilityHandler = null;
+      }
+      this._document = null;
+    }
+    /**
+     * Returns the time delta in seconds.
+     *
+     * @return {number} The time delta in second.
+     */
+    getDelta() {
+      return this._delta / 1e3;
+    }
+    /**
+     * Returns the elapsed time in seconds.
+     *
+     * @return {number} The elapsed time in second.
+     */
+    getElapsed() {
+      return this._elapsed / 1e3;
+    }
+    /**
+     * Returns the timescale.
+     *
+     * @return {number} The timescale.
+     */
+    getTimescale() {
+      return this._timescale;
+    }
+    /**
+     * Sets the given timescale which scale the time delta computation
+     * in `update()`.
+     *
+     * @param {number} timescale - The timescale to set.
+     * @return {Timer} A reference to this timer.
+     */
+    setTimescale(timescale) {
+      this._timescale = timescale;
+      return this;
+    }
+    /**
+     * Resets the time computation for the current simulation step.
+     *
+     * @return {Timer} A reference to this timer.
+     */
+    reset() {
+      this._currentTime = performance.now() - this._startTime;
+      return this;
+    }
+    /**
+     * Can be used to free all internal resources. Usually called when
+     * the timer instance isn't required anymore.
+     */
+    dispose() {
+      this.disconnect();
+    }
+    /**
+     * Updates the internal state of the timer. This method should be called
+     * once per simulation step and before you perform queries against the timer
+     * (e.g. via `getDelta()`).
+     *
+     * @param {number} timestamp - The current time in milliseconds. Can be obtained
+     * from the `requestAnimationFrame` callback argument. If not provided, the current
+     * time will be determined with `performance.now`.
+     * @return {Timer} A reference to this timer.
+     */
+    update(timestamp) {
+      if (this._pageVisibilityHandler !== null && this._document.hidden === true) {
+        this._delta = 0;
+      } else {
+        this._previousTime = this._currentTime;
+        this._currentTime = (timestamp !== void 0 ? timestamp : performance.now()) - this._startTime;
+        this._delta = (this._currentTime - this._previousTime) * this._timescale;
+        this._elapsed += this._delta;
+      }
+      return this;
+    }
+  };
+  function handleVisibilityChange() {
+    if (this._document.hidden === false) this.reset();
+  }
   var _RESERVED_CHARS_RE = "\\[\\]\\.:\\/";
   var _reservedRe = new RegExp("[" + _RESERVED_CHARS_RE + "]", "g");
   var _wordChar = "[^" + _RESERVED_CHARS_RE + "]";
@@ -18380,69 +18531,6 @@
       }
     }
   }
-  var Clock = class {
-    /**
-     * Constructs a new clock.
-     *
-     * @deprecated since 183.
-     * @param {boolean} [autoStart=true] - Whether to automatically start the clock when
-     * `getDelta()` is called for the first time.
-     */
-    constructor(autoStart = true) {
-      this.autoStart = autoStart;
-      this.startTime = 0;
-      this.oldTime = 0;
-      this.elapsedTime = 0;
-      this.running = false;
-      warn("Clock: This module has been deprecated. Please use THREE.Timer instead.");
-    }
-    /**
-     * Starts the clock. When `autoStart` is set to `true`, the method is automatically
-     * called by the class.
-     */
-    start() {
-      this.startTime = performance.now();
-      this.oldTime = this.startTime;
-      this.elapsedTime = 0;
-      this.running = true;
-    }
-    /**
-     * Stops the clock.
-     */
-    stop() {
-      this.getElapsedTime();
-      this.running = false;
-      this.autoStart = false;
-    }
-    /**
-     * Returns the elapsed time in seconds.
-     *
-     * @return {number} The elapsed time.
-     */
-    getElapsedTime() {
-      this.getDelta();
-      return this.elapsedTime;
-    }
-    /**
-     * Returns the delta time in seconds.
-     *
-     * @return {number} The delta time.
-     */
-    getDelta() {
-      let diff = 0;
-      if (this.autoStart && !this.running) {
-        this.start();
-        return 0;
-      }
-      if (this.running) {
-        const newTime = performance.now();
-        diff = (newTime - this.oldTime) / 1e3;
-        this.oldTime = newTime;
-        this.elapsedTime += diff;
-      }
-      return diff;
-    }
-  };
   var Spherical = class {
     /**
      * Constructs a new spherical.
@@ -18774,7 +18862,7 @@
     }
   }
 
-  // node_modules/.pnpm/three@0.186.0/node_modules/three/build/three.module.js
+  // node_modules/three/build/three.module.js
   function WebGLAnimation() {
     let context = null;
     let isAnimating = false;
@@ -30272,7 +30360,7 @@ void main() {
     }
   };
 
-  // node_modules/.pnpm/three@0.186.0/node_modules/three/examples/jsm/controls/OrbitControls.js
+  // node_modules/three/examples/jsm/controls/OrbitControls.js
   var _changeEvent = { type: "change" };
   var _startEvent = { type: "start" };
   var _endEvent = { type: "end" };
@@ -31188,50 +31276,73 @@ void main() {
     }
   }
 
-  // fisheries-upgrade-entry.js
+  // flow-src.js
   var q = 0;
-  var A = [["Fishing & Landing", "Fishers land, weigh and record catch", -10, -2, 1477796], ["Solar Cold-chain", "Four solar-powered cooperative facilities", -6, 7, 3389127], ["Processing & Value", "Four products developed and tested", 2, 8, 15841355], ["Cooperative Market", "Buyer and supply arrangements", 10, 3, 15697757], ["By-product Recovery", "Bones and by-products returned to value", 8, -6, 14052175], ["Cooperative Services", "Reinvestment, records and member protection", 0, -9, 3844487], ["Training & Learning", "Practical workshops, demonstrations and mentoring", -9, -8, 7891401]];
+  var A = [["Fishing & Landing", "Fishers land, weigh and record catch", 191, 12.2, 1477796], ["Solar Cold-chain", "Four solar-powered cooperative facilities", 131, 10.4, 3389127], ["Processing & Value", "Four products developed and tested", 76, 10.4, 15841355], ["Cooperative Market", "Buyer and supply arrangements", 17, 10.4, 15697757], ["By-product Recovery", "Bones and by-products returned to value", -37, 10.4, 14052175], ["Cooperative Services", "Reinvestment, records and member protection", -90, 10.4, 3844487], ["Training & Learning", "Practical workshops, demonstrations and mentoring", -138, 10.4, 7891401]].map((a) => {
+    let r = a[2] * Math.PI / 180;
+    return [a[0], a[1], Math.cos(r) * a[3], Math.sin(r) * a[3], a[4], r];
+  });
   var F = [[0, 1, 3265980], [1, 2, 3265980], [2, 3, 3265980], [2, 4, 15694933], [4, 5, 15694933], [3, 5, 16765276], [5, 6, 9357823], [6, 0, 9357823], [6, 1, 16765276]];
+  var GROUND = 1.55;
+  var ROAD_IN = 5.6;
+  var ROAD_OUT = 6.8;
+  var BOAT_Y = -1.62;
   var M = (c) => new MeshStandardMaterial({ color: c, roughness: 0.7 });
+  var S = (m) => {
+    m.castShadow = m.receiveShadow = true;
+    return m;
+  };
   var B = (w, h, d, c) => {
-    let m = new Mesh(new BoxGeometry(w, h, d), M(c));
+    let m = S(new Mesh(new BoxGeometry(w, h, d), M(c)));
     m.position.y = h / 2;
-    m.castShadow = 1;
     return m;
   };
   var C = (r, h, c) => {
-    let m = new Mesh(new CylinderGeometry(r, r, h, 16), M(c));
+    let m = S(new Mesh(new CylinderGeometry(r, r, h, 16), M(c)));
     m.position.y = h / 2;
-    m.castShadow = 1;
+    return m;
+  };
+  var flat = (geo, c, y) => {
+    let m = new Mesh(geo, M(c));
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = y;
+    m.receiveShadow = true;
     return m;
   };
   function L(t) {
     let c = document.createElement("canvas");
-    c.width = 512;
-    c.height = 96;
+    c.width = 1024;
+    c.height = 176;
     let x = c.getContext("2d");
-    x.fillStyle = "#063b4a";
-    x.roundRect(2, 2, 508, 92, 18);
+    x.fillStyle = "rgba(6,59,74,.94)";
+    x.beginPath();
+    x.roundRect(4, 4, 1016, 168, 40);
     x.fill();
+    x.strokeStyle = "rgba(55,211,189,.9)";
+    x.lineWidth = 6;
+    x.stroke();
     x.fillStyle = "white";
-    x.font = "bold 29px Segoe UI";
+    x.font = "bold 64px Segoe UI,Arial,sans-serif";
     x.textAlign = "center";
     x.textBaseline = "middle";
-    x.fillText(t, 256, 48);
-    let s = new Sprite(new SpriteMaterial({ map: new CanvasTexture(c) }));
-    s.scale.set(4, 0.75, 1);
-    s.position.y = 3.8;
+    x.fillText(t, 512, 90);
+    let tx = new CanvasTexture(c);
+    tx.colorSpace = SRGBColorSpace;
+    tx.anisotropy = 4;
+    let s = new Sprite(new SpriteMaterial({ map: tx, depthTest: false, transparent: true }));
+    s.scale.set(5.2, 0.9, 1);
+    s.position.y = 5.3;
+    s.renderOrder = 10;
     return s;
   }
   function P(sh = 15771719, sc = 1) {
     let g = new Group(), l = B(0.34, 0.72, 0.22, 2505552);
     l.position.y = 0.36;
     g.add(l);
-    let b = new Mesh(new CapsuleGeometry(0.25, 0.62, 5, 10), M(sh));
+    let b = S(new Mesh(new CapsuleGeometry(0.25, 0.62, 5, 10), M(sh)));
     b.position.y = 1.1;
-    b.castShadow = 1;
     g.add(b);
-    let d = new Mesh(new SphereGeometry(0.2, 14, 10), M(9132091));
+    let d = S(new Mesh(new SphereGeometry(0.2, 14, 10), M(9132091)));
     d.position.y = 1.72;
     g.add(d);
     let hat = C(0.3, 0.09, 15979371);
@@ -31241,8 +31352,8 @@ void main() {
     return g;
   }
   function boat(col) {
-    let g = new Group(), z = new Mesh(new CapsuleGeometry(0.48, 2.4, 7, 14), M(col));
-    z.rotation.z = 1.57;
+    let g = new Group(), z = S(new Mesh(new CapsuleGeometry(0.48, 2.4, 7, 14), M(col)));
+    z.rotation.z = Math.PI / 2;
     z.scale.set(1, 0.42, 0.62);
     z.position.y = 0.38;
     g.add(z);
@@ -31259,19 +31370,41 @@ void main() {
     g.add(B(0.75, 0.4, 0.55, col));
     for (let i = 0; i < 3; i++) {
       let z = new Mesh(new CapsuleGeometry(0.06, 0.3, 4, 8), M(11984099));
-      z.rotation.z = 1.57;
+      z.rotation.z = Math.PI / 2;
       z.position.set(-0.2 + i * 0.2, 0.43, 0);
       g.add(z);
     }
     return g;
   }
+  function palm() {
+    let g = new Group();
+    g.add(C(0.14, 2.2, 9071173));
+    for (let i = 0; i < 5; i++) {
+      let f = S(new Mesh(new ConeGeometry(0.28, 1.6, 5), M(4165454)));
+      f.position.y = 2.25;
+      f.rotation.set(1.15, i * 1.26, 0, "YXZ");
+      f.translateY(0.7);
+      g.add(f);
+    }
+    return g;
+  }
   function G2(i) {
-    let g = new Group(), c = A[i][4];
+    let g = new Group();
     if (i == 0) {
       g.add(B(5.8, 0.35, 2.6, 9340794));
-      [-1.7, 1.5].forEach((x, j) => {
-        let z = boat(j ? 15162693 : 2461110);
-        z.position.set(x, -0.05, 2.1 + j * 0.3);
+      let jetty = B(1.4, 0.22, 6.4, 10123861);
+      jetty.position.set(-1.2, 0.12, 4.3);
+      g.add(jetty);
+      for (let z = 2.6; z < 7.6; z += 1.2) [-1.8, -0.6].forEach((x) => {
+        let p = C(0.09, 2.1, 7033399);
+        p.position.set(x, -1.05, z);
+        g.add(p);
+      });
+      [[-2.9, 6.6, 2461110, 0.3], [0.5, 7.6, 15162693, -0.2]].forEach((b) => {
+        let z = boat(b[2]);
+        z.position.set(b[0], BOAT_Y, b[1]);
+        z.rotation.y = Math.PI / 2 + b[3];
+        z.userData.bob = true;
         g.add(z);
       });
       [-1.6, -0.5, 0.7].forEach((x, j) => {
@@ -31292,15 +31425,18 @@ void main() {
       g.add(r);
       [-1, 0, 1].forEach((x) => {
         let p = B(1.15, 0.08, 1.3, 1523034);
-        p.position.set(x * 1.25, 3.35, 0);
+        p.position.set(x * 1.25, 3.3, -0.2);
         p.rotation.x = -0.34;
         g.add(p);
       });
+      let dr = B(1.1, 1.9, 0.06, 10467263);
+      dr.position.set(0.9, 0.95, 1.72);
+      g.add(dr);
       let w = P(3049367);
-      w.position.set(-1.2, 0.2, 2.1);
+      w.position.set(-1.2, 0, 2.3);
       g.add(w);
       let cr = crate(3048354);
-      cr.position.set(0.1, 0.2, 2);
+      cr.position.set(0.1, 0, 2.2);
       g.add(cr);
     } else if (i == 2) {
       g.add(B(5.5, 0.2, 4.3, 11709861));
@@ -31325,39 +31461,46 @@ void main() {
       let r = B(5.2, 0.2, 3.7, 14249547);
       r.position.y = 2.6;
       g.add(r);
+      let aw = B(4.4, 0.08, 1.2, 15975258);
+      aw.position.set(0, 2.05, 2.25);
+      aw.rotation.x = 0.25;
+      g.add(aw);
       [-1.5, -0.5, 0.5, 1.5].forEach((x, j) => {
         let z = crate([14719542, 3909227, 5083580, 14772816][j]);
-        z.position.set(x, 0.1, 2);
+        z.position.set(x, 0, 2.2);
         g.add(z);
       });
       let a = P(15694933);
-      a.position.set(-1, 0.15, 1);
+      a.position.set(-1, 0, 3.1);
       g.add(a);
       let b = P(5862313);
-      b.position.set(1.15, 0.15, 2.5);
-      b.rotation.y = 3.14;
+      b.position.set(1.15, 0, 3.4);
+      b.rotation.y = Math.PI;
       g.add(b);
     } else if (i == 4) {
       g.add(B(4.8, 0.2, 3.8, 10393485));
       [-1.4, 0, 1.4].forEach((x, j) => {
         let z = C(0.62, 1.45, [14052175, 14920271, 7120764][j]);
-        z.position.set(x, 0.82, -0.5);
+        z.position.set(x, 0.92, -0.5);
         g.add(z);
       });
       let m = B(1.5, 1.1, 1.2, 6516853);
-      m.position.set(-1.2, 0.65, 1.2);
+      m.position.set(-1.2, 0.75, 1.2);
       g.add(m);
       let p = P(14184010);
-      p.position.set(2, 0.15, -1.5);
+      p.position.set(1.6, 0.2, 1.3);
       g.add(p);
     } else if (i == 5) {
       g.add(B(4.8, 2.5, 3.4, 14282470));
       let r = B(5.2, 0.2, 3.7, 2591871);
       r.position.y = 2.6;
       g.add(r);
-      [-1.2, 1.2].forEach((x, j) => {
+      let dr = B(1.1, 1.8, 0.06, 5934982);
+      dr.position.set(0, 0.9, 1.72);
+      g.add(dr);
+      [-1.4, 1.4].forEach((x, j) => {
         let p = P(j ? 5600677 : 3844487);
-        p.position.set(x, 0.15, 2.2);
+        p.position.set(x, 0, 2.4);
         g.add(p);
       });
     } else {
@@ -31374,12 +31517,12 @@ void main() {
       board.position.set(0, 1.75, -1.7);
       g.add(board);
       let tr = P(15902277);
-      tr.position.set(-1.5, 0.15, -0.55);
+      tr.position.set(-1.5, 0.2, -0.95);
       g.add(tr);
-      [[-1.4, 0.7], [0, 0.7], [1.4, 0.7], [-1.4, 1.6], [0, 1.6], [1.4, 1.6]].forEach((a, j) => {
+      [[-1.4, 0.2], [0, 0.2], [1.4, 0.2], [-1.4, 1.2], [0, 1.2], [1.4, 1.2]].forEach((a, j) => {
         let p = P([4755378, 15694933, 3844487, 7891401, 15116100, 4684389][j], 0.8);
         p.position.set(a[0], 0.2, a[1]);
-        p.rotation.y = 3.14;
+        p.rotation.y = Math.PI;
         g.add(p);
       });
     }
@@ -31392,62 +31535,90 @@ void main() {
     if (q++) return;
     let m = document.getElementById("threeMount"), s = new Scene();
     s.background = new Color(12576749);
-    s.fog = new Fog(12576749, 35, 80);
-    let c = new PerspectiveCamera(43, m.clientWidth / m.clientHeight, 0.1, 120);
-    c.position.set(18, 16, 24);
+    s.fog = new Fog(12576749, 45, 110);
+    let c = new PerspectiveCamera(43, m.clientWidth / m.clientHeight, 0.1, 200);
+    c.position.set(20, 19, 27);
     let r = new WebGLRenderer({ antialias: true });
     r.setPixelRatio(Math.min(devicePixelRatio, 2));
     r.setSize(m.clientWidth, m.clientHeight);
-    r.shadowMap.enabled = 1;
+    r.shadowMap.enabled = true;
     m.appendChild(r.domElement);
     let o = new OrbitControls(c, r.domElement);
-    o.target.set(0, 1, 0);
-    o.enableDamping = 1;
-    o.minDistance = 11;
-    o.maxDistance = 45;
-    o.maxPolarAngle = 1.52;
-    s.add(new HemisphereLight(15137791, 4352845, 2));
-    let u = new DirectionalLight(16774104, 2);
-    u.position.set(12, 24, 10);
-    u.castShadow = 1;
+    o.target.set(0, 1.5, 0);
+    o.enableDamping = true;
+    o.minDistance = 12;
+    o.maxDistance = 55;
+    o.maxPolarAngle = 1.45;
+    s.add(new HemisphereLight(15137791, 4352845, 1.8));
+    let u = new DirectionalLight(16774104, 2.4);
+    u.position.set(14, 26, 12);
+    u.castShadow = true;
+    u.shadow.mapSize.set(2048, 2048);
+    Object.assign(u.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 80 });
+    u.shadow.bias = -5e-4;
+    u.shadow.normalBias = 0.03;
     s.add(u);
-    let sea = new Mesh(new CircleGeometry(44, 64), M(1346727));
-    sea.rotation.x = -1.57;
+    let sea = new Mesh(new CircleGeometry(140, 96), new MeshStandardMaterial({ color: 1346727, roughness: 0.35, metalness: 0.1 }));
+    sea.rotation.x = -Math.PI / 2;
     sea.position.y = -0.2;
+    sea.receiveShadow = true;
     s.add(sea);
-    let isl = new Mesh(new CylinderGeometry(15, 17, 1.5, 64), M(13218682));
+    let shallows = new Mesh(new RingGeometry(16.5, 22, 96), new MeshBasicMaterial({ color: 6279382, transparent: true, opacity: 0.35, depthWrite: false }));
+    shallows.rotation.x = -Math.PI / 2;
+    shallows.position.y = -0.15;
+    s.add(shallows);
+    let isl = S(new Mesh(new CylinderGeometry(15, 17, 1.5, 96), M(14271626)));
     isl.position.y = 0.5;
     s.add(isl);
-    let gr = new Mesh(new CylinderGeometry(14.6, 15, 1.05, 64), M(6398056));
-    gr.position.y = 1;
+    let gr = S(new Mesh(new CylinderGeometry(14.2, 14.8, 1.05, 96), M(6398056)));
+    gr.position.y = GROUND - 0.525;
     s.add(gr);
-    let road = new Mesh(new TorusGeometry(10, 0.6, 8, 72), M(14207391));
-    road.rotation.x = 1.57;
-    road.position.y = 1.55;
-    s.add(road);
+    s.add(flat(new CircleGeometry(ROAD_IN, 64), 7648122, GROUND + 0.02));
+    s.add(flat(new RingGeometry(ROAD_IN, ROAD_OUT, 96), 14207391, GROUND + 0.03));
+    A.forEach((a, i) => {
+      let len = Math.hypot(a[2], a[3]) - (i ? 2 : 1.6) - ROAD_OUT + 0.1, mid = ROAD_OUT + len / 2 - 0.05, pth = flat(new PlaneGeometry(1.3, len), 14207391, GROUND + 0.04);
+      pth.rotation.z = -a[5] - Math.PI / 2;
+      pth.position.x = Math.cos(a[5]) * mid;
+      pth.position.z = Math.sin(a[5]) * mid;
+      s.add(pth);
+    });
+    let loop = new Mesh(new TorusGeometry(1.5, 0.22, 16, 64), new MeshStandardMaterial({ color: 14218085, emissive: 6060560, emissiveIntensity: 0.4, roughness: 0.4 }));
+    loop.castShadow = true;
+    loop.position.y = GROUND + 2.1;
+    s.add(loop);
+    let base = C(0.9, 0.4, 2977642);
+    base.position.y = GROUND + 0.2;
+    s.add(base);
+    [[160, 13.3], [105, 13.2], [48, 13.4], [-10, 13.4], [-64, 13.3], [-116, 13.2], [-150, 13.4], [25, 3.8], [205, 4], [-80, 4.1], [160, 8.3], [-114, 8.2], [45, 8.3]].forEach(([dg, rad], k) => {
+      let a = dg * Math.PI / 180, p2 = palm();
+      p2.position.set(Math.cos(a) * rad, GROUND, Math.sin(a) * rad);
+      p2.rotation.y = k;
+      p2.scale.setScalar(0.85 + k % 3 * 0.12);
+      s.add(p2);
+    });
     let gs = A.map((a, i) => {
       let g = G2(i);
-      g.position.set(a[2], 1.55, a[3]);
-      g.rotation.y = -Math.atan2(a[3], a[2]) + 1.57;
+      g.position.set(a[2], GROUND, a[3]);
+      g.rotation.y = i ? -a[5] - Math.PI / 2 : -a[5] + Math.PI / 2;
       s.add(g);
       return g;
     }), ps = [];
     F.forEach((f, k) => {
-      let a = A[f[0]], b = A[f[1]], st = new Vector3(a[2], 3, a[3]), en = new Vector3(b[2], 3, b[3]), md = st.clone().add(en).multiplyScalar(0.5);
-      md.y = 5 + k % 2;
+      let a = A[f[0]], b = A[f[1]], st = new Vector3(a[2], GROUND + 3.8, a[3]), en = new Vector3(b[2], GROUND + 3.8, b[3]), md = st.clone().add(en).multiplyScalar(0.5);
+      md.y = GROUND + 6.5 + k % 2 * 1.2;
       let z = new QuadraticBezierCurve3(st, md, en);
-      s.add(new Mesh(new TubeGeometry(z, 36, 0.06, 7), new MeshBasicMaterial({ color: f[2], transparent: true, opacity: 0.5 })));
+      s.add(new Mesh(new TubeGeometry(z, 48, 0.07, 8), new MeshBasicMaterial({ color: f[2], transparent: true, opacity: 0.55 })));
       for (let j = 0; j < 3; j++) {
-        let p2 = new Mesh(new SphereGeometry(0.16, 10, 10), new MeshBasicMaterial({ color: f[2] }));
+        let p2 = new Mesh(new SphereGeometry(0.18, 12, 10), new MeshBasicMaterial({ color: f[2] }));
         s.add(p2);
         ps.push([p2, z, j / 3 + k * 0.07, 0.04 + k * 2e-3]);
       }
     });
-    let ring = new Mesh(new RingGeometry(2.1, 2.5, 40), new MeshBasicMaterial({ color: 14218085, side: 2, transparent: true, opacity: 0 }));
-    ring.rotation.x = -1.57;
-    ring.position.y = 1.58;
+    let ring = new Mesh(new RingGeometry(3.6, 4.1, 64), new MeshBasicMaterial({ color: 14218085, side: DoubleSide, transparent: true, opacity: 0, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = GROUND + 0.06;
     s.add(ring);
-    let ray = new Raycaster(), p = new Vector2(), d;
+    let ray = new Raycaster(), p = new Vector2(), d, sel = -1;
     r.domElement.onpointerdown = (e) => d = [e.clientX, e.clientY];
     r.domElement.onpointerup = (e) => {
       if (!d || Math.hypot(e.clientX - d[0], e.clientY - d[1]) > 8) return;
@@ -31456,23 +31627,35 @@ void main() {
       ray.setFromCamera(p, c);
       let h = ray.intersectObjects(gs, true)[0];
       if (h) {
-        let i = h.object.userData.i, a = A[i];
-        ring.position.set(a[2], 1.58, a[3]);
+        let i = sel = h.object.userData.i, a = A[i];
+        ring.position.set(a[2], GROUND + 0.06, a[3]);
         ring.material.opacity = 0.95;
         document.getElementById("flowCard").innerHTML = '<div class="eyebrow">Selected facility</div><h2>' + a[0] + "</h2><p>" + a[1] + '</p><div class="fact"><span>LIVE CONNECTION</span><b style="font-size:14px">Follow the moving flow particles to the next stage.</b></div>';
       }
     };
-    let cl = new Clock();
-    !(function Q() {
+    let tm = new Timer();
+    tm.connect(document);
+    !(function Q(ts) {
       requestAnimationFrame(Q);
-      let t = cl.getElapsedTime();
+      tm.update(ts);
+      let t = tm.getElapsed(), dt = Math.min(tm.getDelta(), 0.1) * 60;
       ps.forEach((a, i) => {
-        a[2] = (a[2] + a[3] * 0.013) % 1;
+        a[2] = (a[2] + a[3] * 0.013 * dt) % 1;
         a[0].position.copy(a[1].getPoint(a[2]));
         a[0].scale.setScalar(1 + 0.25 * Math.sin(t * 4 + i));
       });
-      ring.rotation.z += 9e-3;
-      gs.forEach((g, i) => g.position.y = 1.55 + Math.sin(t + i) * 0.035);
+      ring.rotation.z += 9e-3 * dt;
+      ring.scale.setScalar(1 + 0.04 * Math.sin(t * 3));
+      loop.rotation.y = t * 0.6;
+      gs.forEach((g, i) => {
+        g.position.y = GROUND + (i === sel ? 0.12 + Math.sin(t * 3) * 0.05 : 0);
+        g.children.forEach((ch) => {
+          if (ch.userData.bob) {
+            ch.position.y = BOAT_Y + Math.sin(t * 1.6 + ch.position.x) * 0.06;
+            ch.rotation.z = Math.sin(t * 1.3 + ch.position.z) * 0.04;
+          }
+        });
+      });
       o.update();
       r.render(s, c);
     })();
